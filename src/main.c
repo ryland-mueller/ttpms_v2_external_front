@@ -17,10 +17,57 @@ uint8_t temp[16];
 uint8_t temp_freq = 0x05;
 
 
+float ta_shift = 8;			// Default shift for MLX90641 in open air
+float emissivity = 0.95;	// Tune this with testing
+
 paramsMLX90640 mlx90640;
 
+static float mlx90640To[MLX90640_PIXEL_NUM];
 
-void MLX_init(void)
+float Vdd;
+float Ta;
+
+int counter = 0;
+
+
+/* --- WORK AND TIMER FUNCTIONS START --- */
+
+void MLX_temp_read_work_handler(struct k_work *work)
+{
+	int status;
+
+	uint16_t frame[834];
+
+	status = MLX90640_GetFrameData(MLX_ADDR, frame);
+	if (status != 0) {
+		LOG_ERR("Getting MLX frame data failed, MLX90640_GetFrameData() returned %d", status);
+	}
+
+	Vdd = MLX90640_GetVdd(frame, &mlx90640);
+
+	Ta = MLX90640_GetTa(frame, &mlx90640);
+
+	float tr = Ta - ta_shift; //Reflected temperature based on the sensor ambient temperature
+
+	MLX90640_CalculateTo(frame, &mlx90640, emissivity, tr, mlx90640To);
+	
+
+	// BLE notify
+}
+
+K_WORK_DEFINE(MLX_temp_read_work, MLX_temp_read_work_handler);
+
+void MLX_temp_read_timer_handler(struct k_timer *dummy)
+{
+	k_work_submit(&MLX_temp_read_work);
+}
+
+K_TIMER_DEFINE(MLX_temp_read_timer, MLX_temp_read_timer_handler, NULL);
+
+/* --- WORK AND TIMER FUNCTIONS END --- */
+
+
+void MLX_start(void)
 {
 	int status;
 
@@ -32,19 +79,45 @@ void MLX_init(void)
 
 	status = MLX90640_DumpEE(MLX_ADDR, eeMLX90640);
 	if (status != 0) {
-		LOG_ERR("Failed to load system parameters, MLX90641_DumpEE() returned %d", status);
+		LOG_ERR("Failed to load system parameters, MLX90640_DumpEE() returned %d", status);
 	}
 
 	status = MLX90640_ExtractParameters(eeMLX90640, &mlx90640);
 	if (status != 0) {
-		LOG_ERR("Parameter extraction failed, MLX90641_ExtractParameters() returned %d", status);
+		LOG_ERR("Parameter extraction failed, MLX90640_ExtractParameters() returned %d", status);
 	}
+
+	status = MLX90640_SetRefreshRate(MLX_ADDR, temp_freq);
+	if (status != 0) {
+		LOG_ERR("Setting refresh rate failed, MLX90640_SetRefreshRate() returned %d", status);
+	}
+
+	status = MLX90640_SynchFrame(MLX_ADDR);
+	if (status != 0) {
+		LOG_ERR("Synchronizing MLX frame failed, MLX90640_SynchFrame() returned %d", status);
+	}
+
+	//start timer
+
+	
+}
+
+void MLX_stop(void)
+{
+	#ifdef BOARD_TTPMS_EXM_2_0
+		// turn off MLX power MOSFET
+	#endif
+
+	// stop timer
 }
 
 
 void main(void)
 {
 	LOG_INF("Running ttpms_v2_external_front on %s", CONFIG_BOARD);
+
+	LOG_INF("Starting MLX sensor");
+	MLX_start();
 
 
 }
