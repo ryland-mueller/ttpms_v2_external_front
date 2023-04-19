@@ -9,6 +9,7 @@
 #include <zephyr/bluetooth/uuid.h>
 #include <zephyr/bluetooth/gatt.h>
 #include <zephyr/drivers/gpio.h>
+#include <math.h>
 
 #include "I2C_Functions.h"
 #include "MLX90640_API.h"
@@ -24,23 +25,23 @@ LOG_MODULE_REGISTER(ttpms);
 #define TTPMS_EFL
 
 
+// frequency of temp sensor updates (0x00 = 0.5Hz, 0x01 = 1Hz, 0x02 = 2Hz, 0x03 = 4Hz, 0x04 = 8Hz, 0x05 = 16Hz (default), 0x06 = 32Hz, 0x07 = 64Hz)
+// note that only one subpage is updated. 8Hz (0x04) seems to be the limit for NRF52833. 40ms required for I2C transmission, 60ms for processing
+#define TEMP_FREQ 0x04
+
 #define TEMP_THREAD_STACKSIZE 8192
 #define TEMP_THREAD_PRIORITY 4
 
-extern void temp_thread(void);
+void temp_thread(void *dummy1, void *dummy2, void *dummy3);
 K_THREAD_STACK_DEFINE(temp_stack_area, TEMP_THREAD_STACKSIZE);
 struct k_thread temp_thread_data;
 k_tid_t temp_thread_id;
 
-
+// true if connected to receiver via BLE
 static bool volatile connection_status;
 
 // Temp values have 0.5 scale, 0 offset (ie 0xAF = 175 = 87.5 C)
-uint8_t tire_temp[16];
-
-// frequency of temp sensor updates (0x00 = 0.5Hz, 0x01 = 1Hz, 0x02 = 2Hz, 0x03 = 4Hz, 0x04 = 8Hz, 0x05 = 16Hz (default), 0x06 = 32Hz, 0x07 = 64Hz)
-// note that only one subpage is updated. 8Hz (0x04) seems to be the limit for NRF52833. 40ms required for I2C transmission, 60ms for processing
-uint8_t temp_freq = 0x04;
+uint8_t tire_temp[32];
 
 float ta_shift = 8;			// Default shift for MLX90641 in open air
 float emissivity = 0.95;	// Tune this with testing
@@ -81,13 +82,12 @@ static struct bt_uuid_128 temp_characteristic_uuid = BT_UUID_INIT_128(
 
 static struct bt_le_adv_param adv_param;
 
+static struct bt_conn *connection;
+
 
 static ssize_t read_temp(struct bt_conn *conn, const struct bt_gatt_attr *attr, void *buf, uint16_t len, uint16_t offset)
 {
-	int *value = &tire_temp;
-
-	return bt_gatt_attr_read(conn, attr, buf, len, offset, value,
-				 sizeof(tire_temp));
+	return bt_gatt_attr_read(conn, attr, buf, len, offset, &tire_temp, sizeof(tire_temp));
 }
 
 
@@ -95,7 +95,7 @@ static ssize_t read_temp(struct bt_conn *conn, const struct bt_gatt_attr *attr, 
 BT_GATT_SERVICE_DEFINE(primary_service,
 	BT_GATT_PRIMARY_SERVICE(&primary_service_uuid),
 	BT_GATT_CHARACTERISTIC(&temp_characteristic_uuid.uuid,
-			       BT_GATT_CHRC_READ,
+			       BT_GATT_CHRC_READ | BT_GATT_CHRC_NOTIFY,
 			       BT_GATT_PERM_READ,
 			       read_temp, NULL, NULL),
 );
@@ -112,6 +112,7 @@ static void connected(struct bt_conn *conn, uint8_t err)
 	} else {
 		LOG_INF("Connected");
 		connection_status = true;
+		connection = conn;
 		temp_thread_id = k_thread_create(&temp_thread_data, temp_stack_area,
                                  K_THREAD_STACK_SIZEOF(temp_stack_area),
                                  temp_thread,
@@ -124,6 +125,7 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 {
 	LOG_INF("Disconnected (reason 0x%02x)", reason);
 	connection_status = false;
+	connection = NULL;
 }
 
 BT_CONN_CB_DEFINE(conn_callbacks) = {
@@ -183,8 +185,11 @@ void main(void)
 }
 
 
-extern void temp_thread(void)
+void temp_thread(void *dummy1, void *dummy2, void *dummy3)
 {
+	ARG_UNUSED(dummy1);
+	ARG_UNUSED(dummy2);
+	ARG_UNUSED(dummy3);
 
 	int status;
 
@@ -212,7 +217,7 @@ extern void temp_thread(void)
 		LOG_INF("Extracted MLX parameters");
 	}
 
-	status = MLX90640_SetRefreshRate(MLX_ADDR, temp_freq);
+	status = MLX90640_SetRefreshRate(MLX_ADDR, TEMP_FREQ);
 	if (status != 0) {
 		LOG_ERR("Setting refresh rate failed, MLX90640_SetRefreshRate() returned %d", status);
 	} else {
@@ -232,8 +237,6 @@ extern void temp_thread(void)
 
 		uint16_t frame[834];
 
-		//k_sleep(K_MSEC(10));
-
 		status = MLX90640_GetFrameData(MLX_ADDR, frame);	// this function waits until data is available
 		if (status < 0) {
 			LOG_ERR("Getting MLX frame data failed, MLX90640_GetFrameData() returned %d", status);
@@ -249,9 +252,21 @@ extern void temp_thread(void)
 		MLX90640_CalculateTo(frame, &mlx90640, emissivity, tr, mlx90640To);
 		//LOG_INF("finished temp processing");
 
-		LOG_INF("Pixel 400: %f Pixel 401: %f", mlx90640To[399], mlx90640To[400]);
+		for (int i = 0; i < 32; i++)
+		{
+			tire_temp[i] = fmax(fmin(round((mlx90640To[320+i]+mlx90640To[352+i]+mlx90640To[384+i]+mlx90640To[416+i])/2),255),0);
+		}
+		
+		LOG_INF("First pixel: %.1f 16th pixel: %.1f 32nd pixel: %.1f", ((float)tire_temp[0]/2), ((float)tire_temp[15]/2), ((float)tire_temp[31]/2));
 
-		// BLE indicate
+		if(connection != NULL) {
+			status = bt_gatt_notify(connection, &primary_service.attrs[1], &tire_temp, sizeof(tire_temp));
+			if(status != 0) {
+				LOG_ERR("Failed to notify, bt_gatt_notify returned: %d", status);
+			} else {
+				LOG_INF("Notified");
+			}
+		}
 	}
 
 

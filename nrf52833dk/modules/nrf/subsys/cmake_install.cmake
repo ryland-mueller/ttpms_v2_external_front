@@ -39,12 +39,27 @@ endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for the subdirectory.
+  include("C:/Users/Ryland/Documents/NCS_Projects/ttpms_v2_external_front/nrf52833dk/modules/nrf/subsys/bluetooth/cmake_install.cmake")
+endif()
+
+if(NOT CMAKE_INSTALL_LOCAL_ONLY)
+  # Include the install script for the subdirectory.
   include("C:/Users/Ryland/Documents/NCS_Projects/ttpms_v2_external_front/nrf52833dk/modules/nrf/subsys/net/cmake_install.cmake")
 endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for the subdirectory.
   include("C:/Users/Ryland/Documents/NCS_Projects/ttpms_v2_external_front/nrf52833dk/modules/nrf/subsys/dfu/cmake_install.cmake")
+endif()
+
+if(NOT CMAKE_INSTALL_LOCAL_ONLY)
+  # Include the install script for the subdirectory.
+  include("C:/Users/Ryland/Documents/NCS_Projects/ttpms_v2_external_front/nrf52833dk/modules/nrf/subsys/mpsl/init/cmake_install.cmake")
+endif()
+
+if(NOT CMAKE_INSTALL_LOCAL_ONLY)
+  # Include the install script for the subdirectory.
+  include("C:/Users/Ryland/Documents/NCS_Projects/ttpms_v2_external_front/nrf52833dk/modules/nrf/subsys/mpsl/fem/cmake_install.cmake")
 endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
