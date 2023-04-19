@@ -28,7 +28,7 @@ int MLX90640_I2CGeneralReset(void)
     uint8_t cmd = 0x06;   
  
     // writing 0x06 to address 0x00 will reset all devices on I2C
-    ack = i2c_write(i2c_dev, cmd, 1, MLX_ADDR);
+    ack = i2c_write(i2c_dev, &cmd, 1, MLX_ADDR);
 
     if (ack != 0x00)
     {
@@ -88,15 +88,16 @@ int MLX90640_I2CWrite(uint8_t slaveAddr, uint16_t writeAddress, uint16_t data)
 
     if (ack != 0x00)
     {
-        LOG_ERR("Error writing to MLX90640 over I2C");
+        //LOG_ERR("Error writing to MLX90640 over I2C");
         return -1;
     }         
 
-    MLX90640_I2CRead(slaveAddr,writeAddress,1, &dataCheck);
+    MLX90640_I2CRead(slaveAddr, writeAddress, 1, &dataCheck);
 
-    if ( dataCheck != data)
+    if (dataCheck != data)
     {
-        LOG_ERR("Error writing to MLX90640, readback failed");
+        //LOG_ERR("Error writing to MLX90640, readback failed");
+        //LOG_ERR("dataCheck: %d  data: %d", dataCheck, data);
         return -2;
     }    
 

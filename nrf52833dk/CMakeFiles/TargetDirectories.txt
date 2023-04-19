@@ -56,9 +56,9 @@ C:/Users/Ryland/Documents/NCS_Projects/ttpms_v2_external_front/nrf52833dk/zephyr
 C:/Users/Ryland/Documents/NCS_Projects/ttpms_v2_external_front/nrf52833dk/zephyr/lib/CMakeFiles/rebuild_cache.dir
 C:/Users/Ryland/Documents/NCS_Projects/ttpms_v2_external_front/nrf52833dk/zephyr/lib/libc/CMakeFiles/edit_cache.dir
 C:/Users/Ryland/Documents/NCS_Projects/ttpms_v2_external_front/nrf52833dk/zephyr/lib/libc/CMakeFiles/rebuild_cache.dir
-C:/Users/Ryland/Documents/NCS_Projects/ttpms_v2_external_front/nrf52833dk/zephyr/lib/libc/minimal/CMakeFiles/lib__libc__minimal.dir
-C:/Users/Ryland/Documents/NCS_Projects/ttpms_v2_external_front/nrf52833dk/zephyr/lib/libc/minimal/CMakeFiles/edit_cache.dir
-C:/Users/Ryland/Documents/NCS_Projects/ttpms_v2_external_front/nrf52833dk/zephyr/lib/libc/minimal/CMakeFiles/rebuild_cache.dir
+C:/Users/Ryland/Documents/NCS_Projects/ttpms_v2_external_front/nrf52833dk/zephyr/lib/libc/newlib/CMakeFiles/lib__libc__newlib.dir
+C:/Users/Ryland/Documents/NCS_Projects/ttpms_v2_external_front/nrf52833dk/zephyr/lib/libc/newlib/CMakeFiles/edit_cache.dir
+C:/Users/Ryland/Documents/NCS_Projects/ttpms_v2_external_front/nrf52833dk/zephyr/lib/libc/newlib/CMakeFiles/rebuild_cache.dir
 C:/Users/Ryland/Documents/NCS_Projects/ttpms_v2_external_front/nrf52833dk/zephyr/lib/posix/CMakeFiles/lib__posix.dir
 C:/Users/Ryland/Documents/NCS_Projects/ttpms_v2_external_front/nrf52833dk/zephyr/lib/posix/CMakeFiles/edit_cache.dir
 C:/Users/Ryland/Documents/NCS_Projects/ttpms_v2_external_front/nrf52833dk/zephyr/lib/posix/CMakeFiles/rebuild_cache.dir
@@ -146,9 +146,9 @@ C:/Users/Ryland/Documents/NCS_Projects/ttpms_v2_external_front/nrf52833dk/zephyr
 C:/Users/Ryland/Documents/NCS_Projects/ttpms_v2_external_front/nrf52833dk/zephyr/drivers/gpio/CMakeFiles/drivers__gpio.dir
 C:/Users/Ryland/Documents/NCS_Projects/ttpms_v2_external_front/nrf52833dk/zephyr/drivers/gpio/CMakeFiles/edit_cache.dir
 C:/Users/Ryland/Documents/NCS_Projects/ttpms_v2_external_front/nrf52833dk/zephyr/drivers/gpio/CMakeFiles/rebuild_cache.dir
-C:/Users/Ryland/Documents/NCS_Projects/ttpms_v2_external_front/nrf52833dk/zephyr/drivers/serial/CMakeFiles/drivers__serial.dir
-C:/Users/Ryland/Documents/NCS_Projects/ttpms_v2_external_front/nrf52833dk/zephyr/drivers/serial/CMakeFiles/edit_cache.dir
-C:/Users/Ryland/Documents/NCS_Projects/ttpms_v2_external_front/nrf52833dk/zephyr/drivers/serial/CMakeFiles/rebuild_cache.dir
+C:/Users/Ryland/Documents/NCS_Projects/ttpms_v2_external_front/nrf52833dk/zephyr/drivers/i2c/CMakeFiles/drivers__i2c.dir
+C:/Users/Ryland/Documents/NCS_Projects/ttpms_v2_external_front/nrf52833dk/zephyr/drivers/i2c/CMakeFiles/edit_cache.dir
+C:/Users/Ryland/Documents/NCS_Projects/ttpms_v2_external_front/nrf52833dk/zephyr/drivers/i2c/CMakeFiles/rebuild_cache.dir
 C:/Users/Ryland/Documents/NCS_Projects/ttpms_v2_external_front/nrf52833dk/zephyr/drivers/timer/CMakeFiles/drivers__timer.dir
 C:/Users/Ryland/Documents/NCS_Projects/ttpms_v2_external_front/nrf52833dk/zephyr/drivers/timer/CMakeFiles/edit_cache.dir
 C:/Users/Ryland/Documents/NCS_Projects/ttpms_v2_external_front/nrf52833dk/zephyr/drivers/timer/CMakeFiles/rebuild_cache.dir

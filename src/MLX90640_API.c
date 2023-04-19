@@ -18,6 +18,11 @@
 #include "MLX90640_API.h"
 #include <math.h>
 
+/* includes for debugging/temporary */
+#include <zephyr/logging/log.h>
+
+LOG_MODULE_DECLARE(ttpms);
+
 static void ExtractVDDParameters(uint16_t *eeData, paramsMLX90640 *mlx90640);
 static void ExtractPTATParameters(uint16_t *eeData, paramsMLX90640 *mlx90640);
 static void ExtractGainParameters(uint16_t *eeData, paramsMLX90640 *mlx90640);
@@ -120,6 +125,7 @@ int MLX90640_GetFrameData(uint8_t slaveAddr, uint16_t *frameData)
     uint16_t data[64];
     uint8_t cnt = 0;
     
+    //LOG_INF("started waiting");
     while(dataReady == 0)
     {
         error = MLX90640_I2CRead(slaveAddr, MLX90640_STATUS_REG, 1, &statusRegister);
@@ -129,8 +135,10 @@ int MLX90640_GetFrameData(uint8_t slaveAddr, uint16_t *frameData)
         }    
         //dataReady = statusRegister & 0x0008;
         dataReady = MLX90640_GET_DATA_READY(statusRegister); 
-    }      
+    }
+    //LOG_INF("finished waiting");
     
+    //LOG_INF("started I2C transmitting");
     error = MLX90640_I2CWrite(slaveAddr, MLX90640_STATUS_REG, MLX90640_INIT_STATUS_VALUE);
     if(error == -MLX90640_I2C_NACK_ERROR)
     {
@@ -147,7 +155,8 @@ int MLX90640_GetFrameData(uint8_t slaveAddr, uint16_t *frameData)
     if(error != MLX90640_NO_ERROR)
     {
         return error;
-    }     
+    }
+    //LOG_INF("finished I2C transmitting");
         
     error = MLX90640_I2CRead(slaveAddr, MLX90640_CTRL_REG, 1, &controlRegister1);
     frameData[832] = controlRegister1;

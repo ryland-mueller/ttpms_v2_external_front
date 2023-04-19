@@ -91,14 +91,14 @@
 			tx-high-power-supported;
 			ieee802154: ieee802154 {
 				compatible = "nordic,nrf-ieee802154";
-				status = "okay";
+				status = "disabled";
 			};
 		};
 		uart0: uart@40002000 {
 			compatible = "nordic,nrf-uarte";
 			reg = < 0x40002000 0x1000 >;
 			interrupts = < 0x2 0x1 >;
-			status = "okay";
+			status = "disabled";
 			current-speed = < 0x1c200 >;
 			pinctrl-0 = < &uart0_default >;
 			pinctrl-1 = < &uart0_sleep >;
@@ -109,7 +109,7 @@
 			#address-cells = < 0x1 >;
 			#size-cells = < 0x0 >;
 			reg = < 0x40003000 0x1000 >;
-			clock-frequency = < 0x186a0 >;
+			clock-frequency = < 0x61a80 >;
 			interrupts = < 0x3 0x1 >;
 			status = "okay";
 			pinctrl-0 = < &i2c0_default >;
@@ -147,7 +147,7 @@
 			reg = < 0x40004000 0x1000 >;
 			interrupts = < 0x4 0x1 >;
 			max-frequency = < 0x7a1200 >;
-			status = "okay";
+			status = "disabled";
 			pinctrl-0 = < &spi1_default >;
 			pinctrl-1 = < &spi1_sleep >;
 			pinctrl-names = "default", "sleep";
@@ -314,7 +314,7 @@
 			compatible = "nordic,nrf-pwm";
 			reg = < 0x4001c000 0x1000 >;
 			interrupts = < 0x1c 0x1 >;
-			status = "okay";
+			status = "disabled";
 			#pwm-cells = < 0x3 >;
 			pinctrl-0 = < &pwm0_default >;
 			pinctrl-1 = < &pwm0_sleep >;
@@ -435,7 +435,7 @@
 			compatible = "nordic,nrf-uarte";
 			reg = < 0x40028000 0x1000 >;
 			interrupts = < 0x28 0x1 >;
-			status = "okay";
+			status = "disabled";
 			current-speed = < 0x1c200 >;
 			pinctrl-0 = < &uart1_default >;
 			pinctrl-1 = < &uart1_sleep >;
@@ -457,7 +457,7 @@
 			max-frequency = < 0x1e84800 >;
 			rx-delay-supported;
 			rx-delay = < 0x2 >;
-			status = "okay";
+			status = "disabled";
 			cs-gpios = < &arduino_header 0x10 0x1 >;
 			pinctrl-0 = < &spi3_default >;
 			pinctrl-1 = < &spi3_sleep >;
@@ -522,13 +522,13 @@
 		i2c0_default: i2c0_default {
 			phandle = < 0x4 >;
 			group1 {
-				psels = < 0xc001a >, < 0xb001b >;
+				psels = < 0xc0011 >, < 0xb0014 >;
 			};
 		};
 		i2c0_sleep: i2c0_sleep {
 			phandle = < 0x5 >;
 			group1 {
-				psels = < 0xc001a >, < 0xb001b >;
+				psels = < 0xc0011 >, < 0xb0014 >;
 				low-power-enable;
 			};
 		};

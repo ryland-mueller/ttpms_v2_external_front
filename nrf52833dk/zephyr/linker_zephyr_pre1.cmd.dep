@@ -12,7 +12,7 @@ linker_zephyr_pre1.cmd: \
  C:/ncs/v2.3.0/zephyr/include/zephyr/sys/util_macro.h \
  C:/ncs/v2.3.0/zephyr/include/zephyr/sys/util_internal.h \
  C:/ncs/v2.3.0/zephyr/include/zephyr/sys/util_loops.h \
- C:/ncs/v2.3.0/zephyr/lib/libc/minimal/include/stdbool.h \
+ c:\ncs\toolchains\v2.3.0\opt\zephyr-sdk\arm-zephyr-eabi\lib\gcc\arm-zephyr-eabi\12.1.0\include\stdbool.h \
  C:/ncs/v2.3.0/zephyr/include/zephyr/devicetree/io-channels.h \
  C:/ncs/v2.3.0/zephyr/include/zephyr/devicetree/clocks.h \
  C:/ncs/v2.3.0/zephyr/include/zephyr/devicetree/gpio.h \

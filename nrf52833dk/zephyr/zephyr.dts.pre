@@ -1024,4 +1024,57 @@ zephyr_udc0: &usbd {
  status = "okay";
 };
 # 0 "<command-line>" 2
+# 1 "c:/Users/Ryland/Documents/NCS_Projects/ttpms_v2_external_front/nrf52833dk_nrf52833.overlay" 1
+# 17 "c:/Users/Ryland/Documents/NCS_Projects/ttpms_v2_external_front/nrf52833dk_nrf52833.overlay"
+&uart0 {
+    status = "disabled";
+};
+
+&uart1 {
+    status = "disabled";
+};
+
+&pwm0 {
+    status = "disabled";
+};
+
+&spi1 {
+    status = "disabled";
+};
+
+&spi3 {
+    status = "disabled";
+};
+
+&ieee802154 {
+    status = "disabled";
+};
+
+
+
+
+&i2c0 {
+    status = "okay";
+    clock-frequency = <400000>;
+};
+
+
+
+&pinctrl {
+    i2c0_default: i2c0_default {
+  group1 {
+   psels = <((((((0) * 32U) + (17)) & 0x7FU) << 0U) | ((12U & 0xFFFFU) << 16U))>,
+        <((((((0) * 32U) + (20)) & 0x7FU) << 0U) | ((11U & 0xFFFFU) << 16U))>;
+  };
+ };
+
+ i2c0_sleep: i2c0_sleep {
+  group1 {
+   psels = <((((((0) * 32U) + (17)) & 0x7FU) << 0U) | ((12U & 0xFFFFU) << 16U))>,
+        <((((((0) * 32U) + (20)) & 0x7FU) << 0U) | ((11U & 0xFFFFU) << 16U))>;
+   low-power-enable;
+  };
+ };
+};
+# 0 "<command-line>" 2
 # 1 "C:/ncs/v2.3.0/zephyr/misc/empty_file.c"
