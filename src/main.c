@@ -21,12 +21,14 @@ LOG_MODULE_REGISTER(ttpms);
 
 
 // IMPORTANT: define which corner the sensor will go
-// options = TTPMS_EFL, TTPMS_EFR
+// options = TTPMS_EFL or TTPMS_EFR
 #define TTPMS_EFL
 
 
 // frequency of temp sensor updates (0x00 = 0.5Hz, 0x01 = 1Hz, 0x02 = 2Hz, 0x03 = 4Hz, 0x04 = 8Hz, 0x05 = 16Hz (default), 0x06 = 32Hz, 0x07 = 64Hz)
 // note that only one subpage is updated. 8Hz (0x04) seems to be the limit for NRF52833. 40ms required for I2C transmission, 60ms for processing
+// if upgraded to NRF5340, we could go to 1MHz I2C and also process faster
+// best way forward is to modify the MLX90640_API.c functions to only read and process relevant pixels
 #define TEMP_FREQ 0x04
 
 #define TEMP_THREAD_STACKSIZE 8192
@@ -37,8 +39,10 @@ K_THREAD_STACK_DEFINE(temp_stack_area, TEMP_THREAD_STACKSIZE);
 struct k_thread temp_thread_data;
 k_tid_t temp_thread_id;
 
-// true if connected to receiver via BLE
-static bool volatile connection_status;
+
+// 0th bit = temp enable
+// use atomic set, clear, test functions
+atomic_t flags;
 
 // Temp values have 0.5 scale, 0 offset (ie 0xAF = 175 = 87.5 C)
 uint8_t tire_temp[32];
@@ -85,19 +89,33 @@ static struct bt_le_adv_param adv_param;
 static struct bt_conn *connection;
 
 
-static ssize_t read_temp(struct bt_conn *conn, const struct bt_gatt_attr *attr, void *buf, uint16_t len, uint16_t offset)
+// this is a callback for if CCC is changed (could be subscribe or unsubscribe)
+static void subscribe_temp(const struct bt_gatt_attr *attr, uint16_t value)
 {
-	return bt_gatt_attr_read(conn, attr, buf, len, offset, &tire_temp, sizeof(tire_temp));
+	const bool notif_enabled = (value == BT_GATT_CCC_NOTIFY);
+
+	if (notif_enabled) {	
+		atomic_set_bit(&flags, 0);	// enable temperature measurements and start temp thread
+		temp_thread_id = k_thread_create(&temp_thread_data, temp_stack_area,
+                                 K_THREAD_STACK_SIZEOF(temp_stack_area),
+                                 temp_thread,
+                                 NULL, NULL, NULL,
+                                 TEMP_THREAD_PRIORITY, 0, K_NO_WAIT);
+		LOG_INF("Notifications subscribed, temp enabled");
+	} else {
+		atomic_clear_bit(&flags, 0); // disable temperature measurements
+		LOG_INF("Notifications unsubscribed, temp disabled");
+	}
 }
 
 
-// Vendor Primary Service Declaration
+// Primary Service Declaration
 BT_GATT_SERVICE_DEFINE(primary_service,
 	BT_GATT_PRIMARY_SERVICE(&primary_service_uuid),
 	BT_GATT_CHARACTERISTIC(&temp_characteristic_uuid.uuid,
-			       BT_GATT_CHRC_READ | BT_GATT_CHRC_NOTIFY,
-			       BT_GATT_PERM_READ,
-			       read_temp, NULL, NULL),
+			       BT_GATT_CHRC_NOTIFY,
+			       NULL, NULL, NULL, NULL),
+	BT_GATT_CCC(subscribe_temp, BT_GATT_PERM_READ | BT_GATT_PERM_WRITE)
 );
 
 static const struct bt_data ad[] = {
@@ -111,20 +129,14 @@ static void connected(struct bt_conn *conn, uint8_t err)
 		LOG_WRN("Connection failed (err 0x%02x)", err);
 	} else {
 		LOG_INF("Connected");
-		connection_status = true;
 		connection = conn;
-		temp_thread_id = k_thread_create(&temp_thread_data, temp_stack_area,
-                                 K_THREAD_STACK_SIZEOF(temp_stack_area),
-                                 temp_thread,
-                                 NULL, NULL, NULL,
-                                 TEMP_THREAD_PRIORITY, 0, K_NO_WAIT);
 	}
 }
 
 static void disconnected(struct bt_conn *conn, uint8_t reason)
 {
 	LOG_INF("Disconnected (reason 0x%02x)", reason);
-	connection_status = false;
+	atomic_clear_bit(&flags, 0);	// disable temperature measurements
 	connection = NULL;
 }
 
@@ -194,10 +206,10 @@ void temp_thread(void *dummy1, void *dummy2, void *dummy3)
 	int status;
 
 	#ifdef BOARD_TTPMS_EXM_2_0
-		// turn on MLX power MOSFET and wait short time
+		// turn on MLX power MOSFET
 	#endif
 
-	//k_sleep(K_MSEC(80));	// wait 80ms after MLX90640 POR
+	//k_sleep(K_MSEC(80));	// wait 80ms after MLX90640 POR, then:
 	//k_sleep(K_MSEC(500));	// wait one refresh rate? default refresh rate?
 	k_sleep(K_MSEC(1000));	//datasheet is weird so just wait 1 second to be safe
 
@@ -231,13 +243,13 @@ void temp_thread(void *dummy1, void *dummy2, void *dummy3)
 		LOG_INF("Synchronized MLX frame");
 	}
 
-
-	while (connection_status)
+	
+	while (atomic_test_bit(&flags, 0))	// atomic babbyyyy
 	{
 
 		uint16_t frame[834];
 
-		status = MLX90640_GetFrameData(MLX_ADDR, frame);	// this function waits until data is available
+		status = MLX90640_GetFrameData(MLX_ADDR, frame);	// this function waits until data is available from MLX
 		if (status < 0) {
 			LOG_ERR("Getting MLX frame data failed, MLX90640_GetFrameData() returned %d", status);
 		}
@@ -246,7 +258,7 @@ void temp_thread(void *dummy1, void *dummy2, void *dummy3)
 
 		Ta = MLX90640_GetTa(frame, &mlx90640);
 
-		float tr = Ta - ta_shift; //Reflected temperature based on the sensor ambient temperature
+		float tr = Ta - ta_shift; // Reflected temperature based on the sensor ambient temperature
 
 		//LOG_INF("started temp processing");
 		MLX90640_CalculateTo(frame, &mlx90640, emissivity, tr, mlx90640To);
@@ -254,17 +266,18 @@ void temp_thread(void *dummy1, void *dummy2, void *dummy3)
 
 		for (int i = 0; i < 32; i++)
 		{
+			// would Zephyr CLAMP macro be faster than fmin and fmax?
 			tire_temp[i] = fmax(fmin(round((mlx90640To[320+i]+mlx90640To[352+i]+mlx90640To[384+i]+mlx90640To[416+i])/2),255),0);
 		}
 		
-		LOG_INF("First pixel: %.1f 16th pixel: %.1f 32nd pixel: %.1f", ((float)tire_temp[0]/2), ((float)tire_temp[15]/2), ((float)tire_temp[31]/2));
+		//LOG_INF("First pixel: %.1f 16th pixel: %.1f 32nd pixel: %.1f", ((float)tire_temp[0]/2), ((float)tire_temp[15]/2), ((float)tire_temp[31]/2));
 
-		if(connection != NULL) {
+		if((connection != NULL) && atomic_test_bit(&flags, 0)) {	// MLX processing above takes a while, check if we are still connected and temp is enabled
 			status = bt_gatt_notify(connection, &primary_service.attrs[1], &tire_temp, sizeof(tire_temp));
 			if(status != 0) {
 				LOG_ERR("Failed to notify, bt_gatt_notify returned: %d", status);
 			} else {
-				LOG_INF("Notified");
+				//LOG_INF("Notified");
 			}
 		}
 	}
