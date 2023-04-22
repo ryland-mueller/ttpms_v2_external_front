@@ -31,6 +31,7 @@ LOG_MODULE_REGISTER(ttpms);
 // best way forward is to modify the MLX90640_API.c functions to only read and process relevant pixels
 #define TEMP_FREQ 0x04
 
+
 #define TEMP_THREAD_STACKSIZE 8192
 #define TEMP_THREAD_PRIORITY 4
 
@@ -45,8 +46,10 @@ k_tid_t temp_thread_id;
 atomic_t flags;
 #define TEMP_FLAG 0
 
+
 // Temp values have 0.5 scale, 0 offset (ie 0xAF = 175 = 87.5 C)
 uint8_t tire_temp[32];
+
 
 float ta_shift = 8;			// Default shift for MLX90641 in open air
 float emissivity = 0.95;	// Tune this with testing
@@ -93,7 +96,7 @@ static struct bt_conn *connection;
 // this is a callback for if CCC is changed (could be subscribe or unsubscribe)
 static void subscribe_temp(const struct bt_gatt_attr *attr, uint16_t value)
 {
-	const bool notif_enabled = (value == BT_GATT_CCC_NOTIFY);
+	const bool notif_enabled = (value == BT_GATT_CCC_NOTIFY);	// not sure why this is assigned to this of just checked in the if()
 
 	if (notif_enabled) {	
 		atomic_set_bit(&flags, TEMP_FLAG);	// enable temperature measurements and start temp thread
