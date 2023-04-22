@@ -43,6 +43,7 @@ k_tid_t temp_thread_id;
 // 0th bit = temp enable
 // use atomic set, clear, test functions
 atomic_t flags;
+#define TEMP_FLAG 0
 
 // Temp values have 0.5 scale, 0 offset (ie 0xAF = 175 = 87.5 C)
 uint8_t tire_temp[32];
@@ -95,7 +96,7 @@ static void subscribe_temp(const struct bt_gatt_attr *attr, uint16_t value)
 	const bool notif_enabled = (value == BT_GATT_CCC_NOTIFY);
 
 	if (notif_enabled) {	
-		atomic_set_bit(&flags, 0);	// enable temperature measurements and start temp thread
+		atomic_set_bit(&flags, TEMP_FLAG);	// enable temperature measurements and start temp thread
 		temp_thread_id = k_thread_create(&temp_thread_data, temp_stack_area,
                                  K_THREAD_STACK_SIZEOF(temp_stack_area),
                                  temp_thread,
@@ -103,7 +104,7 @@ static void subscribe_temp(const struct bt_gatt_attr *attr, uint16_t value)
                                  TEMP_THREAD_PRIORITY, 0, K_NO_WAIT);
 		LOG_INF("Notifications subscribed, temp enabled");
 	} else {
-		atomic_clear_bit(&flags, 0); // disable temperature measurements
+		atomic_clear_bit(&flags, TEMP_FLAG); // disable temperature measurements
 		LOG_INF("Notifications unsubscribed, temp disabled");
 	}
 }
@@ -136,7 +137,7 @@ static void connected(struct bt_conn *conn, uint8_t err)
 static void disconnected(struct bt_conn *conn, uint8_t reason)
 {
 	LOG_INF("Disconnected (reason 0x%02x)", reason);
-	atomic_clear_bit(&flags, 0);	// disable temperature measurements
+	atomic_clear_bit(&flags, TEMP_FLAG);	// disable temperature measurements
 	connection = NULL;
 }
 
@@ -192,7 +193,7 @@ void main(void)
 	}
 
 	while (1) {
-		k_sleep(K_FOREVER);		// is this neccessary?
+		k_sleep(K_FOREVER);		// breh
 	}
 }
 
@@ -244,7 +245,7 @@ void temp_thread(void *dummy1, void *dummy2, void *dummy3)
 	}
 
 	
-	while (atomic_test_bit(&flags, 0))	// atomic babbyyyy
+	while (atomic_test_bit(&flags, TEMP_FLAG))	// atomic babbyyyy
 	{
 
 		uint16_t frame[834];
@@ -266,13 +267,12 @@ void temp_thread(void *dummy1, void *dummy2, void *dummy3)
 
 		for (int i = 0; i < 32; i++)
 		{
-			// would Zephyr CLAMP macro be faster than fmin and fmax?
-			tire_temp[i] = fmax(fmin(round((mlx90640To[320+i]+mlx90640To[352+i]+mlx90640To[384+i]+mlx90640To[416+i])/2),255),0);
+			tire_temp[i] = CLAMP(round((mlx90640To[320+i]+mlx90640To[352+i]+mlx90640To[384+i]+mlx90640To[416+i])/2), 0, 255);
 		}
 		
 		//LOG_INF("First pixel: %.1f 16th pixel: %.1f 32nd pixel: %.1f", ((float)tire_temp[0]/2), ((float)tire_temp[15]/2), ((float)tire_temp[31]/2));
 
-		if((connection != NULL) && atomic_test_bit(&flags, 0)) {	// MLX processing above takes a while, check if we are still connected and temp is enabled
+		if((connection != NULL) && atomic_test_bit(&flags, TEMP_FLAG)) {	// MLX processing above takes a while, check if we are still connected and temp is enabled
 			status = bt_gatt_notify(connection, &primary_service.attrs[1], &tire_temp, sizeof(tire_temp));
 			if(status != 0) {
 				LOG_ERR("Failed to notify, bt_gatt_notify returned: %d", status);
