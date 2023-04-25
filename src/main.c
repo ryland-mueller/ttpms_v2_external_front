@@ -11,6 +11,7 @@
 #include <zephyr/drivers/gpio.h>
 #include <math.h>
 
+#include "ttpms_common.h"
 #include "I2C_Functions.h"
 #include "MLX90640_API.h"
 
@@ -41,10 +42,10 @@ struct k_thread temp_thread_data;
 k_tid_t temp_thread_id;
 
 
-// 0th bit = temp enable
-// use atomic set, clear, test functions
+// How we keep track of state.
+// Use Zephyr atomic set, clear, test functions.
 atomic_t flags;
-#define TEMP_FLAG 0
+#define TEMP_ENABLED_FLAG 0
 
 
 // Temp values have 0.5 scale, 0 offset (ie 0xAF = 175 = 87.5 C)
@@ -67,25 +68,18 @@ float Ta;
 #define BLE_ADV_INTERVAL_MIN 1200	// 1200 * 0.625ms = 0.75s
 #define BLE_ADV_INTERVAL_MAX 2000	// 2000 * 0.625ms = 1.25s
 
-// First hex char must be C for random static address
 #ifdef TTPMS_EFL
-	#define TTPMS_SENSOR_BT_ID "CA:69:F1:F1:11:22"
+	#define TTPMS_SENSOR_BT_ID TTPMS_EFL_BT_ID
 	char bt_device_name[28] = "TTPMS External Sensor FL";
 #endif
 #ifdef TTPMS_EFR
-	#define TTPMS_SENSOR_BT_ID "CA:69:F1:F1:11:23"
+	#define TTPMS_SENSOR_BT_ID TTPMS_EFR_BT_ID
 	char bt_device_name[28] = "TTPMS External Sensor FR";
 #endif
 
-// Custom BT Service UUIDs
-#define BT_UUID_CUSTOM_SERVICE_VAL \
-	BT_UUID_128_ENCODE(0x12345678, 0x1234, 0x5678, 0x1234, 0x56789abcdef0)
 
-static struct bt_uuid_128 primary_service_uuid = BT_UUID_INIT_128(
-	BT_UUID_CUSTOM_SERVICE_VAL);
-
-static struct bt_uuid_128 temp_characteristic_uuid = BT_UUID_INIT_128(
-	BT_UUID_128_ENCODE(0x12345678, 0x1234, 0x5678, 0x1234, 0x56789abcdef1));
+static struct bt_uuid_128 primary_service_uuid = BT_UUID_INIT_128(TTPMS_SERVICE_BASE_UUID);
+static struct bt_uuid_128 temp_characteristic_uuid = BT_UUID_INIT_128(TTPMS_SERVICE_TEMP_UUID);
 
 
 static struct bt_le_adv_param adv_param;
@@ -99,7 +93,7 @@ static void subscribe_temp(const struct bt_gatt_attr *attr, uint16_t value)
 	const bool notif_enabled = (value == BT_GATT_CCC_NOTIFY);	// not sure why this is assigned to this of just checked in the if()
 
 	if (notif_enabled) {	
-		atomic_set_bit(&flags, TEMP_FLAG);	// enable temperature measurements and start temp thread
+		atomic_set_bit(&flags, TEMP_ENABLED_FLAG);	// enable temperature measurements and start temp thread
 		temp_thread_id = k_thread_create(&temp_thread_data, temp_stack_area,
                                  K_THREAD_STACK_SIZEOF(temp_stack_area),
                                  temp_thread,
@@ -107,7 +101,7 @@ static void subscribe_temp(const struct bt_gatt_attr *attr, uint16_t value)
                                  TEMP_THREAD_PRIORITY, 0, K_NO_WAIT);
 		LOG_INF("Notifications subscribed, temp enabled");
 	} else {
-		atomic_clear_bit(&flags, TEMP_FLAG); // disable temperature measurements
+		atomic_clear_bit(&flags, TEMP_ENABLED_FLAG); // disable temperature measurements
 		LOG_INF("Notifications unsubscribed, temp disabled");
 	}
 }
@@ -116,15 +110,13 @@ static void subscribe_temp(const struct bt_gatt_attr *attr, uint16_t value)
 // Primary Service Declaration
 BT_GATT_SERVICE_DEFINE(primary_service,
 	BT_GATT_PRIMARY_SERVICE(&primary_service_uuid),
-	BT_GATT_CHARACTERISTIC(&temp_characteristic_uuid.uuid,
-			       BT_GATT_CHRC_NOTIFY,
-			       NULL, NULL, NULL, NULL),
-	BT_GATT_CCC(subscribe_temp, BT_GATT_PERM_READ | BT_GATT_PERM_WRITE)
+		BT_GATT_CHARACTERISTIC(&temp_characteristic_uuid.uuid, BT_GATT_CHRC_NOTIFY, NULL, NULL, NULL, NULL),
+			BT_GATT_CCC(subscribe_temp, BT_GATT_PERM_READ | BT_GATT_PERM_WRITE),
 );
 
 static const struct bt_data ad[] = {
 	BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
-	BT_DATA_BYTES(BT_DATA_UUID128_ALL, BT_UUID_CUSTOM_SERVICE_VAL),
+	BT_DATA_BYTES(BT_DATA_UUID128_ALL, TTPMS_SERVICE_BASE_UUID),
 };
 
 static void connected(struct bt_conn *conn, uint8_t err)
@@ -140,7 +132,7 @@ static void connected(struct bt_conn *conn, uint8_t err)
 static void disconnected(struct bt_conn *conn, uint8_t reason)
 {
 	LOG_INF("Disconnected (reason 0x%02x)", reason);
-	atomic_clear_bit(&flags, TEMP_FLAG);	// disable temperature measurements
+	atomic_clear_bit(&flags, TEMP_ENABLED_FLAG);	// disable temperature measurements
 	connection = NULL;
 }
 
@@ -248,7 +240,7 @@ void temp_thread(void *dummy1, void *dummy2, void *dummy3)
 	}
 
 	
-	while (atomic_test_bit(&flags, TEMP_FLAG))	// atomic babbyyyy
+	while (atomic_test_bit(&flags, TEMP_ENABLED_FLAG))	// atomic babbyyyy
 	{
 
 		uint16_t frame[834];
@@ -275,7 +267,7 @@ void temp_thread(void *dummy1, void *dummy2, void *dummy3)
 		
 		//LOG_INF("First pixel: %.1f 16th pixel: %.1f 32nd pixel: %.1f", ((float)tire_temp[0]/2), ((float)tire_temp[15]/2), ((float)tire_temp[31]/2));
 
-		if((connection != NULL) && atomic_test_bit(&flags, TEMP_FLAG)) {	// MLX processing above takes a while, check if we are still connected and temp is enabled
+		if((connection != NULL) && atomic_test_bit(&flags, TEMP_ENABLED_FLAG)) {	// MLX processing above takes a while, check if we are still connected and temp is enabled
 			status = bt_gatt_notify(connection, &primary_service.attrs[1], &tire_temp, sizeof(tire_temp));
 			if(status != 0) {
 				LOG_ERR("Failed to notify, bt_gatt_notify returned: %d", status);
