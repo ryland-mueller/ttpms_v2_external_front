@@ -1,5 +1,5 @@
 # TTPMS V2 External Front Sensor Application
-The application running on the TTPMS V2 external front sensor main board. Communicates with the wireless receiver through Bluetooth LE.<br />
+The application running on the TTPMS V2 external front sensor main boards. Communicates with the wireless receiver through Bluetooth LE.<br />
 
 The board definition files (link to repo below) are required in order to build and flash this application onto a TTPMS V2 sensor board.
 
