@@ -211,7 +211,7 @@ void temp_thread(void *dummy1, void *dummy2, void *dummy3)
 
 	uint16_t eeMLX90640[MLX90640_EEPROM_DUMP_NUM];
 
-	status = MLX90640_DumpEE(MLX_ADDR, eeMLX90640);
+	status = MLX90640_DumpEE(MLX90640_ADDR, eeMLX90640);
 	if (status != 0) {
 		LOG_ERR("Failed to load system parameters, MLX90640_DumpEE() returned %d", status);
 	} else {
@@ -225,14 +225,14 @@ void temp_thread(void *dummy1, void *dummy2, void *dummy3)
 		LOG_INF("Extracted MLX parameters");
 	}
 
-	status = MLX90640_SetRefreshRate(MLX_ADDR, TEMP_FREQ);
+	status = MLX90640_SetRefreshRate(MLX90640_ADDR, TEMP_FREQ);
 	if (status != 0) {
 		LOG_ERR("Setting refresh rate failed, MLX90640_SetRefreshRate() returned %d", status);
 	} else {
 		LOG_INF("Set MLX refresh rate");
 	}
 
-	status = MLX90640_SynchFrame(MLX_ADDR);
+	status = MLX90640_SynchFrame(MLX90640_ADDR);
 	if (status != 0) {
 		LOG_ERR("Synchronizing MLX frame failed, MLX90640_SynchFrame() returned %d", status);
 	} else {
@@ -245,7 +245,7 @@ void temp_thread(void *dummy1, void *dummy2, void *dummy3)
 
 		uint16_t frame[834];
 
-		status = MLX90640_GetFrameData(MLX_ADDR, frame);	// this function waits until data is available from MLX
+		status = MLX90640_GetFrameData(MLX90640_ADDR, frame);	// this function waits until data is available from MLX
 		if (status < 0) {
 			LOG_ERR("Getting MLX frame data failed, MLX90640_GetFrameData() returned %d", status);
 		}

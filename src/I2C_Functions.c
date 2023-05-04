@@ -9,7 +9,7 @@
 
 LOG_MODULE_DECLARE(ttpms);
 
-const struct device *const i2c_dev = DEVICE_DT_GET(DT_NODELABEL(i2c0));
+const struct device *const i2c_dev = DEVICE_DT_GET(DT_NODELABEL(i2c0)); // should prob change this to i2c chosen (and add the chosen part to devicetree)
 
 
 void I2C_Init()
@@ -22,13 +22,13 @@ void I2C_Init()
     //i2c_configure should be uneccessary since we set 400KHz in devicetree
 }
 
-int MLX90640_I2CGeneralReset(void)
+int I2C_GeneralReset(void)  // this function is originally for MLX one-shot mode, will not be used
 {    
     int ack;
     uint8_t cmd = 0x06;   
  
     // writing 0x06 to address 0x00 will reset all devices on I2C
-    ack = i2c_write(i2c_dev, &cmd, 1, MLX_ADDR);
+    ack = i2c_write(i2c_dev, &cmd, 1, 0x00);
 
     if (ack != 0x00)
     {
@@ -41,7 +41,7 @@ int MLX90640_I2CGeneralReset(void)
     return 0;
 }
 
-int MLX90640_I2CRead(uint8_t slaveAddr, uint16_t startAddress, uint16_t nMemAddressRead, uint16_t *data)
+int MLX_I2CRead(uint8_t slaveAddr, uint16_t startAddress, uint16_t nMemAddressRead, uint16_t *data)
 {                          
     int ack = 0;                               
     int cnt = 0;
@@ -58,7 +58,7 @@ int MLX90640_I2CRead(uint8_t slaveAddr, uint16_t startAddress, uint16_t nMemAddr
 
     if (ack != 0x00)
     {
-        LOG_ERR("Error reading from MLX90640 over I2C");
+        LOG_ERR("Error reading from MLX over I2C");
         return -1;
     }
 
@@ -71,7 +71,7 @@ int MLX90640_I2CRead(uint8_t slaveAddr, uint16_t startAddress, uint16_t nMemAddr
     return 0;   
 } 
 
-int MLX90640_I2CWrite(uint8_t slaveAddr, uint16_t writeAddress, uint16_t data)
+int MLX_I2CWrite(uint8_t slaveAddr, uint16_t writeAddress, uint16_t data)
 {
     int ack = 0;
     char cmd[4] = {0,0,0,0};
@@ -88,15 +88,15 @@ int MLX90640_I2CWrite(uint8_t slaveAddr, uint16_t writeAddress, uint16_t data)
 
     if (ack != 0x00)
     {
-        //LOG_ERR("Error writing to MLX90640 over I2C");
+        //LOG_ERR("Error writing to MLX over I2C");
         return -1;
     }         
 
-    MLX90640_I2CRead(slaveAddr, writeAddress, 1, &dataCheck);
+    MLX_I2CRead(slaveAddr, writeAddress, 1, &dataCheck);
 
     if (dataCheck != data)
     {
-        //LOG_ERR("Error writing to MLX90640, readback failed");
+        //LOG_ERR("Error writing to MLX, readback failed");
         //LOG_ERR("dataCheck: %d  data: %d", dataCheck, data);
         return -2;
     }    
