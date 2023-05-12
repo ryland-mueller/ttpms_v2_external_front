@@ -33,6 +33,7 @@ LOG_MODULE_REGISTER(ttpms);
 #define TEMP_FREQ 0x04
 
 
+// haven't tuned these
 #define TEMP_THREAD_STACKSIZE 8192
 #define TEMP_THREAD_PRIORITY 4
 
@@ -44,23 +45,29 @@ k_tid_t temp_thread_id;
 
 // How we keep track of state.
 // Use Zephyr atomic set, clear, test functions.
-atomic_t flags;
+ATOMIC_DEFINE(flags, 1);
 #define TEMP_ENABLED_FLAG 0
 
 
+// The actual temp data we will send to receiver
 // Temp values have 0.5 scale, 0 offset (ie 0xAF = 175 = 87.5 C)
 uint8_t tire_temp[32];
 
 
-float ta_shift = 8;			// Default shift for MLX90641 in open air
-float emissivity = 0.95;	// Tune this with testing
+// Tune the below with testing
+const float ta_shift = 8;			// Default shift for MLX90641 in open air
+const float emissivity = 0.95;	// Tune this with testing
 
-paramsMLX90640 mlx90640;
 
-static float mlx90640To[MLX90640_PIXEL_NUM];
+static float mlx90640To[MLX90640_PIXEL_NUM];	// Processed temp data from MLX functions
+paramsMLX90640 mlx90640;	// Used for MLX functions
 
-float Vdd;
-float Ta;
+float Vdd;	// From MLX, used by MLX functions
+float Ta;	// From MLX, used by MLX functions
+
+
+static const struct gpio_dt_spec mlx_power =
+	GPIO_DT_SPEC_GET_OR(DT_NODELABEL(mlx_power), gpios, {0});
 
 
 /* --- BLUETOOTH SHIT START --- */
@@ -93,7 +100,7 @@ static void subscribe_temp(const struct bt_gatt_attr *attr, uint16_t value)
 	const bool notif_enabled = (value == BT_GATT_CCC_NOTIFY);	// not sure why this is assigned to this of just checked in the if()
 
 	if (notif_enabled) {	
-		atomic_set_bit(&flags, TEMP_ENABLED_FLAG);	// enable temperature measurements and start temp thread
+		atomic_set_bit(flags, TEMP_ENABLED_FLAG);	// enable temperature measurements and start temp thread
 		temp_thread_id = k_thread_create(&temp_thread_data, temp_stack_area,
                                  K_THREAD_STACK_SIZEOF(temp_stack_area),
                                  temp_thread,
@@ -101,7 +108,7 @@ static void subscribe_temp(const struct bt_gatt_attr *attr, uint16_t value)
                                  TEMP_THREAD_PRIORITY, 0, K_NO_WAIT);
 		LOG_INF("Notifications subscribed, temp enabled");
 	} else {
-		atomic_clear_bit(&flags, TEMP_ENABLED_FLAG); // disable temperature measurements
+		atomic_clear_bit(flags, TEMP_ENABLED_FLAG); // disable temperature measurements
 		LOG_INF("Notifications unsubscribed, temp disabled");
 	}
 }
@@ -132,7 +139,7 @@ static void connected(struct bt_conn *conn, uint8_t err)
 static void disconnected(struct bt_conn *conn, uint8_t reason)
 {
 	LOG_INF("Disconnected (reason 0x%02x)", reason);
-	atomic_clear_bit(&flags, TEMP_ENABLED_FLAG);	// disable temperature measurements
+	atomic_clear_bit(flags, TEMP_ENABLED_FLAG);	// disable temperature measurements
 	connection = NULL;
 }
 
@@ -149,6 +156,17 @@ void main(void)
 	LOG_INF("Running ttpms_v2_external_front on %s", CONFIG_BOARD);
 
 	int err;
+
+	if (!gpio_is_ready_dt(&mlx_power)) {
+		LOG_ERR("The load switch pin GPIO port is not ready.");
+		return;
+	}
+
+	err = gpio_pin_configure_dt(&mlx_power, GPIO_OUTPUT_INACTIVE);
+	if (err != 0) {
+		LOG_ERR("Configuring GPIO pin failed: %d", err);
+		return;
+	}
 
 	bt_addr_le_t addr;
 
@@ -180,16 +198,13 @@ void main(void)
 	adv_param.interval_min = BLE_ADV_INTERVAL_MIN;
 	adv_param.interval_max = BLE_ADV_INTERVAL_MAX;
 
-	err = bt_le_adv_start(BT_LE_ADV_CONN_NAME, ad, ARRAY_SIZE(ad), NULL, 0);
+	err = bt_le_adv_start(&adv_param, ad, ARRAY_SIZE(ad), NULL, 0);
 	if (err) {
 		LOG_ERR("Advertising failed to start (err %d)", err);
 	} else {
 		LOG_INF("Advertising successfully started");
 	}
 
-	while (1) {
-		k_sleep(K_FOREVER);		// breh
-	}
 }
 
 
@@ -201,9 +216,10 @@ void temp_thread(void *dummy1, void *dummy2, void *dummy3)
 
 	int status;
 
-	#ifdef BOARD_TTPMS_EXM_2_0
-		// turn on MLX power MOSFET
-	#endif
+	status = gpio_pin_set_dt(&mlx_power, 1);	// turn on MLX power MOSFET
+	if (status != 0) {
+		LOG_ERR("Setting GPIO pin level failed: %d", status);
+	}
 
 	//k_sleep(K_MSEC(80));	// wait 80ms after MLX90640 POR, then:
 	//k_sleep(K_MSEC(500));	// wait one refresh rate? default refresh rate?
@@ -240,7 +256,7 @@ void temp_thread(void *dummy1, void *dummy2, void *dummy3)
 	}
 
 	
-	while (atomic_test_bit(&flags, TEMP_ENABLED_FLAG))	// atomic babbyyyy
+	while (atomic_test_bit(flags, TEMP_ENABLED_FLAG))	// atomic babbyyyy
 	{
 
 		uint16_t frame[834];
@@ -267,7 +283,7 @@ void temp_thread(void *dummy1, void *dummy2, void *dummy3)
 		
 		//LOG_INF("First pixel: %.1f 16th pixel: %.1f 32nd pixel: %.1f", ((float)tire_temp[0]/2), ((float)tire_temp[15]/2), ((float)tire_temp[31]/2));
 
-		if((connection != NULL) && atomic_test_bit(&flags, TEMP_ENABLED_FLAG)) {	// MLX processing above takes a while, check if we are still connected and temp is enabled
+		if((connection != NULL) && atomic_test_bit(flags, TEMP_ENABLED_FLAG)) {	// MLX processing above takes a while, check if we are still connected and temp is enabled
 			status = bt_gatt_notify(connection, &primary_service.attrs[1], &tire_temp, sizeof(tire_temp));
 			if(status != 0) {
 				LOG_ERR("Failed to notify, bt_gatt_notify returned: %d", status);
@@ -277,8 +293,9 @@ void temp_thread(void *dummy1, void *dummy2, void *dummy3)
 		}
 	}
 
+	status = gpio_pin_set_dt(&mlx_power, 0);	// turn off MLX power MOSFET
+	if (status != 0) {
+		LOG_ERR("Setting GPIO pin level failed: %d", status);
+	}
 
-	#ifdef BOARD_TTPMS_EXM_2_0
-		// turn off MLX power MOSFET
-	#endif
 }
